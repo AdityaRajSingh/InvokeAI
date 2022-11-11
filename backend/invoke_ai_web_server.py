@@ -83,7 +83,7 @@ class InvokeAIWebServer:
             print(prompt)
             g = Generate()
             outputs = g.txt2img(prompt)
-            return {"url": "http://127.0.0.1:9090/outputs/"+outputs[0][0].split("/")[2]}
+            return {"url": "outputs/"+outputs[0][0].split("/")[2]}
 
         # Outputs Route
         self.app.config["OUTPUTS_FOLDER"] = os.path.abspath(args.outdir)
