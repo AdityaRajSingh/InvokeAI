@@ -74,13 +74,15 @@ class InvokeAIWebServer:
         def keep_alive():
             return {"message": "Server Running"}
 
-        @self.app.route("/text-to-image")
+        @self.app.route("/text-to-image", methods=['POST'])
         def text_to_image():
-            prompt = request.args.get("prompt")
+            prompt = request.get_json()["prompt"]
+            # size = request.get_json()["size"]
+            # height = size.split("x")[0]
+            # width = size.split("x")[1]
             print(prompt)
             g = Generate()
             outputs = g.txt2img(prompt)
-            print(outputs)
             return {"url": "http://127.0.0.1:9090/outputs/"+outputs[0][0].split("/")[2]}
 
         # Outputs Route
