@@ -8,7 +8,7 @@ import math
 import io
 import base64
 
-from flask import Flask, redirect, request, send_from_directory
+from flask import Flask, abort, redirect, request, send_from_directory
 from flask_socketio import SocketIO
 from PIL import Image
 from uuid import uuid4
@@ -76,14 +76,43 @@ class InvokeAIWebServer:
 
         @self.app.route("/text-to-image", methods=['POST'])
         def text_to_image():
+
             prompt = request.get_json()["prompt"]
-            # size = request.get_json()["size"]
-            # height = size.split("x")[0]
-            # width = size.split("x")[1]
-            print(prompt)
+            prompt = prompt.strip()
+
+            size = request.get_json()["size"]
+            height = int(size.split("x")[0])
+            width = int(size.split("x")[1])
+
+            steps = request.get_json()["steps"]
+            cfg_scale = request.get_json()["cfg_scale"]
+            sampler_name = request.get_json()["sampler_name"]
+
+            if steps < 0 or steps > 100:
+                abort(400)
+                # return {"error": "Invalid steps. Use steps in range 0-100"}
+            if prompt.size() < 1:
+                abort(400)
+                # return {"error": "Prompt cannot be empty"}
+            if height < 128 or width < 128 or height % 64 != 0 or width % 64 != 0:
+                abort(400)
+                # return {"error": "Invalid image size"}
+            if cfg_scale < 2 or cfg_scale > 20:
+                abort(400)
+                # return {"error": "Please choose cfg scale in range 2-20"}
+
+            if sampler_name != "k_lms" or sampler_name != "ddim" or sampler_name != "plms" or sampler_name != "k_euler" or sampler_name != "k_euler_a" or sampler_name != "k_dpm_2" or sampler_name != "k_dpm_2_a" or sampler_name != "k_heun":
+                abort(400)
+                # return {"error": "Invalid sampler name"}
             g = Generate()
-            outputs = g.txt2img(prompt)
+
+            outputs = g.txt2img(prompt, height,
+                                width, steps, cfg_scale, sampler_name)
             return {"url": "outputs/"+outputs[0][0].split("/")[2]}
+
+        @self.app.errorhandler(400)
+        def handle_400(e):
+            return {"error": "Bad request"}, 400
 
         # Outputs Route
         self.app.config["OUTPUTS_FOLDER"] = os.path.abspath(args.outdir)
