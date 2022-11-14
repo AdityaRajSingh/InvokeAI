@@ -79,7 +79,7 @@ class InvokeAIWebServer:
 
             prompt = request.get_json()["prompt"]
             prompt = prompt.strip()
-
+            print("Request received. Prompt: " + prompt)
             size = request.get_json()["size"]
             height = int(size.split("x")[0])
             width = int(size.split("x")[1])
@@ -89,25 +89,30 @@ class InvokeAIWebServer:
             sampler_name = request.get_json()["sampler_name"]
 
             if steps < 0 or steps > 100:
+                print("Invalid steps. Use steps in range 0-100")
                 abort(400)
                 # return {"error": "Invalid steps. Use steps in range 0-100"}
-            if prompt.size() < 1:
+            if len(prompt) < 1:
+                print("Prompt cannot be empty")
                 abort(400)
                 # return {"error": "Prompt cannot be empty"}
             if height < 128 or width < 128 or height % 64 != 0 or width % 64 != 0:
+                print("Invalid image size")
                 abort(400)
                 # return {"error": "Invalid image size"}
             if cfg_scale < 2 or cfg_scale > 20:
+                print("Please choose cfg scale in range 2-20")
                 abort(400)
                 # return {"error": "Please choose cfg scale in range 2-20"}
 
-            if sampler_name != "k_lms" or sampler_name != "ddim" or sampler_name != "plms" or sampler_name != "k_euler" or sampler_name != "k_euler_a" or sampler_name != "k_dpm_2" or sampler_name != "k_dpm_2_a" or sampler_name != "k_heun":
+            if not (sampler_name == "k_lms" or sampler_name == "ddim" or sampler_name == "plms" or sampler_name == "k_euler" or sampler_name == "k_euler_a" or sampler_name == "k_dpm_2" or sampler_name == "k_dpm_2_a" or sampler_name == "k_heun"):
+                print("Invalid sampler name")
                 abort(400)
                 # return {"error": "Invalid sampler name"}
             g = Generate()
 
-            outputs = g.txt2img(prompt, height,
-                                width, steps, cfg_scale, sampler_name)
+            outputs = g.txt2img(prompt, height=height,
+                                width=width, steps=steps, cfg_scale=cfg_scale, sampler_name=sampler_name)
             return {"url": "outputs/"+outputs[0][0].split("/")[2]}
 
         @self.app.errorhandler(400)
