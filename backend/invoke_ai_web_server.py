@@ -90,20 +90,20 @@ class InvokeAIWebServer:
 
             if steps < 0 or steps > 100:
                 print("Invalid steps. Use steps in range 0-100")
-                abort(400, "Invalid steps. Use steps in range 0-100")
+                abort(400, {'message': "Invalid steps. Use steps in range 0-100"})
             if len(prompt) < 1:
                 print("Prompt cannot be empty")
-                abort(400, "Prompt cannot be empty")
+                abort(400, {'message': "Prompt cannot be empty"})
             if height < 128 or width < 128 or height % 64 != 0 or width % 64 != 0:
                 print("Invalid image size")
-                abort(400, "Invalid image size")
+                abort(400, {'message': "Invalid image size"})
             if cfg_scale < 2 or cfg_scale > 20:
                 print("Please choose cfg scale in range 2-20")
-                abort(400, "Please choose cfg scale in range 2-20")
+                abort(400, {'message': "Please choose cfg scale in range 2-20"})
 
             if not (sampler_name == "k_lms" or sampler_name == "ddim" or sampler_name == "plms" or sampler_name == "k_euler" or sampler_name == "k_euler_a" or sampler_name == "k_dpm_2" or sampler_name == "k_dpm_2_a" or sampler_name == "k_heun"):
                 print("Invalid sampler name")
-                abort(400, "Invalid sampler name")
+                abort(400, {'message': "Invalid sampler name"})
 
             try:            
                 g = Generate()
@@ -111,11 +111,11 @@ class InvokeAIWebServer:
                 return {"url": "outputs/"+outputs[0][0].split("/")[2]}, 200
             except Exception as e:
                 print(e)
-                abort(400, str(e))
+                abort(400, {'message': str(e)})
 
         @self.app.errorhandler(400)
         def handle_400(e):
-            return {"error": e.message}, 400
+            return {"error": e.description['message']}, 400
 
         # Outputs Route
         self.app.config["OUTPUTS_FOLDER"] = os.path.abspath(args.outdir)
