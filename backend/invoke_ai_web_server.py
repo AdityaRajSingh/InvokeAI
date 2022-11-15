@@ -8,7 +8,7 @@ import math
 import io
 import base64
 
-from flask import Flask, redirect, send_from_directory
+from flask import Flask, abort, redirect, request, send_from_directory
 from flask_socketio import SocketIO
 from PIL import Image
 from uuid import uuid4
@@ -17,6 +17,7 @@ from threading import Event
 from ldm.invoke.args import Args, APP_ID, APP_VERSION, calculate_init_img_hash
 from ldm.invoke.pngwriter import PngWriter, retrieve_metadata
 from ldm.invoke.prompt_parser import split_weighted_subprompts
+from ldm.generate import Generate
 
 from backend.modules.parameters import parameters_to_command
 
@@ -73,11 +74,66 @@ class InvokeAIWebServer:
         def keep_alive():
             return {"message": "Server Running"}
 
+        @self.app.route("/text-to-image", methods=['POST'])
+        def text_to_image():
+
+            prompt = request.get_json()["prompt"]
+            prompt = prompt.strip()
+            print("Request received. Prompt: " + prompt)
+            size = request.get_json()["size"]
+            height = 512
+            width = 512
+            print(size)
+            try:
+                height = int(size.split("x")[0])
+                width = int(size.split("x")[1])
+
+            except Exception as e:
+                print(e)
+                abort(400, {'message': "invalid size format"})
+
+            steps = request.get_json()["steps"]
+            cfg_scale = request.get_json()["cfg_scale"]
+            sampler_name = request.get_json()["sampler_name"]
+
+            if steps < 0 or steps > 100:
+                print("Invalid steps. Use steps in range 0-100")
+                abort(
+                    400, {'message': "Invalid steps. Use steps in range 0-100"})
+            if len(prompt) < 1:
+                print("Prompt cannot be empty")
+                abort(400, {'message': "Prompt cannot be empty"})
+            if height < 128 or width < 128 or height % 64 != 0 or width % 64 != 0:
+                print("Invalid image size")
+                abort(400, {'message': "Invalid image size"})
+            if cfg_scale < 2 or cfg_scale > 20:
+                print("Please choose cfg scale in range 2-20")
+                abort(400, {'message': "Please choose cfg scale in range 2-20"})
+
+            if not (sampler_name == "k_lms" or sampler_name == "ddim" or sampler_name == "plms" or sampler_name == "k_euler" or sampler_name == "k_euler_a" or sampler_name == "k_dpm_2" or sampler_name == "k_dpm_2_a" or sampler_name == "k_heun"):
+                print("Invalid sampler name")
+                abort(400, {'message': "Invalid sampler name"})
+
+            try:
+                g = Generate()
+                outputs = g.txt2img(prompt, height=height, width=width,
+                                    steps=steps, cfg_scale=cfg_scale, sampler_name=sampler_name)
+                return {"url": "outputs/"+outputs[0][0].split("/")[2]}, 200
+            except Exception as e:
+                print(e)
+                abort(400, {'message': str(e)})
+
+        @self.app.errorhandler(400)
+        def handle_400(e):
+            return {"error": e.description['message']}, 400
+
         # Outputs Route
         self.app.config["OUTPUTS_FOLDER"] = os.path.abspath(args.outdir)
 
         @self.app.route("/outputs/<path:file_path>")
         def outputs(file_path):
+            print(file_path)
+            print(self.app.config["OUTPUTS_FOLDER"])
             return send_from_directory(self.app.config["OUTPUTS_FOLDER"], file_path)
 
         # Base Route
@@ -123,7 +179,8 @@ class InvokeAIWebServer:
                 print(
                     ">> Default host address now 127.0.0.1 (localhost). Use --host 0.0.0.0 to bind any address."
                 )
-                print(f">> Point your browser at http://{self.host}:{self.port}")
+                print(
+                    f">> Point your browser at http://{self.host}:{self.port}")
             self.socketio.run(app=self.app, host=self.host, port=self.port)
 
     def setup_app(self):
@@ -134,7 +191,8 @@ class InvokeAIWebServer:
         # location for "finished" images
         self.result_path = args.outdir
         # temporary path for intermediates
-        self.intermediate_path = os.path.join(self.result_path, "intermediates/")
+        self.intermediate_path = os.path.join(
+            self.result_path, "intermediates/")
         # path for user-uploaded init images and masks
         self.init_image_path = os.path.join(self.result_path, "init-images/")
         self.mask_image_path = os.path.join(self.result_path, "mask-images/")
@@ -583,7 +641,8 @@ class InvokeAIWebServer:
                     mask_image = Image.open(
                         io.BytesIO(
                             base64.decodebytes(
-                                bytes(generation_parameters["init_mask"], "utf-8")
+                                bytes(
+                                    generation_parameters["init_mask"], "utf-8")
                             )
                         )
                     )
@@ -649,7 +708,8 @@ class InvokeAIWebServer:
                     )
 
                 if generation_parameters["progress_latents"]:
-                    image = self.generate.sample_to_lowres_estimated_image(sample)
+                    image = self.generate.sample_to_lowres_estimated_image(
+                        sample)
                     (width, height) = image.size
                     width *= 8
                     height *= 8
@@ -670,7 +730,8 @@ class InvokeAIWebServer:
                         },
                     )
 
-                self.socketio.emit("progressUpdate", progress.to_formatted_dict())
+                self.socketio.emit(
+                    "progressUpdate", progress.to_formatted_dict())
                 eventlet.sleep(0)
 
             def image_done(image, seed, first_seed):
@@ -695,7 +756,8 @@ class InvokeAIWebServer:
 
                 progress.set_current_status("Generation Complete")
 
-                self.socketio.emit("progressUpdate", progress.to_formatted_dict())
+                self.socketio.emit(
+                    "progressUpdate", progress.to_formatted_dict())
                 eventlet.sleep(0)
 
                 all_parameters = generation_parameters
@@ -706,7 +768,8 @@ class InvokeAIWebServer:
                     and all_parameters["variation_amount"] > 0
                 ):
                     first_seed = first_seed or seed
-                    this_variation = [[seed, all_parameters["variation_amount"]]]
+                    this_variation = [
+                        [seed, all_parameters["variation_amount"]]]
                     all_parameters["with_variations"] = (
                         prior_variations + this_variation
                     )
@@ -722,7 +785,8 @@ class InvokeAIWebServer:
                 if esrgan_parameters:
                     progress.set_current_status("Upscaling")
                     progress.set_current_status_has_steps(False)
-                    self.socketio.emit("progressUpdate", progress.to_formatted_dict())
+                    self.socketio.emit(
+                        "progressUpdate", progress.to_formatted_dict())
                     eventlet.sleep(0)
 
                     image = self.esrgan.process(
@@ -745,10 +809,12 @@ class InvokeAIWebServer:
                     if facetool_parameters["type"] == "gfpgan":
                         progress.set_current_status("Restoring Faces (GFPGAN)")
                     elif facetool_parameters["type"] == "codeformer":
-                        progress.set_current_status("Restoring Faces (Codeformer)")
+                        progress.set_current_status(
+                            "Restoring Faces (Codeformer)")
 
                     progress.set_current_status_has_steps(False)
-                    self.socketio.emit("progressUpdate", progress.to_formatted_dict())
+                    self.socketio.emit(
+                        "progressUpdate", progress.to_formatted_dict())
                     eventlet.sleep(0)
 
                     if facetool_parameters["type"] == "gfpgan":
@@ -778,7 +844,8 @@ class InvokeAIWebServer:
                     all_parameters["facetool_type"] = facetool_parameters["type"]
 
                 progress.set_current_status("Saving Image")
-                self.socketio.emit("progressUpdate", progress.to_formatted_dict())
+                self.socketio.emit(
+                    "progressUpdate", progress.to_formatted_dict())
                 eventlet.sleep(0)
 
                 # restore the stashed URLS and discard the paths, we are about to send the result to client
@@ -786,9 +853,11 @@ class InvokeAIWebServer:
                     all_parameters["init_img"] = init_img_url
 
                 if "init_mask" in all_parameters:
-                    all_parameters["init_mask"] = ""  # TODO: store the mask in metadata
+                    # TODO: store the mask in metadata
+                    all_parameters["init_mask"] = ""
 
-                metadata = self.parameters_to_generated_image_metadata(all_parameters)
+                metadata = self.parameters_to_generated_image_metadata(
+                    all_parameters)
 
                 command = parameters_to_command(all_parameters)
 
@@ -812,7 +881,8 @@ class InvokeAIWebServer:
                 else:
                     progress.mark_complete()
 
-                self.socketio.emit("progressUpdate", progress.to_formatted_dict())
+                self.socketio.emit(
+                    "progressUpdate", progress.to_formatted_dict())
                 eventlet.sleep(0)
 
                 self.socketio.emit(
@@ -965,7 +1035,8 @@ class InvokeAIWebServer:
         self, parameters, original_image_path
     ):
         try:
-            current_metadata = retrieve_metadata(original_image_path)["sd-metadata"]
+            current_metadata = retrieve_metadata(
+                original_image_path)["sd-metadata"]
             postprocessing_metadata = {}
 
             """
@@ -1004,7 +1075,8 @@ class InvokeAIWebServer:
                     postprocessing_metadata
                 )
             else:
-                current_metadata["image"]["postprocessing"] = [postprocessing_metadata]
+                current_metadata["image"]["postprocessing"] = [
+                    postprocessing_metadata]
 
             return current_metadata
 
