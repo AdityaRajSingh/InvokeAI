@@ -81,8 +81,16 @@ class InvokeAIWebServer:
             prompt = prompt.strip()
             print("Request received. Prompt: " + prompt)
             size = request.get_json()["size"]
-            height = int(size.split("x")[0])
-            width = int(size.split("x")[1])
+            height = 512
+            width = 512
+            print(size)
+            try:
+                height = int(size.split("x")[0])
+                width = int(size.split("x")[1])
+
+            except Exception as e:
+                print(e)
+                abort(400, {'message': "invalid size format"})
 
             steps = request.get_json()["steps"]
             cfg_scale = request.get_json()["cfg_scale"]
@@ -90,7 +98,8 @@ class InvokeAIWebServer:
 
             if steps < 0 or steps > 100:
                 print("Invalid steps. Use steps in range 0-100")
-                abort(400, {'message': "Invalid steps. Use steps in range 0-100"})
+                abort(
+                    400, {'message': "Invalid steps. Use steps in range 0-100"})
             if len(prompt) < 1:
                 print("Prompt cannot be empty")
                 abort(400, {'message': "Prompt cannot be empty"})
@@ -105,9 +114,10 @@ class InvokeAIWebServer:
                 print("Invalid sampler name")
                 abort(400, {'message': "Invalid sampler name"})
 
-            try:            
+            try:
                 g = Generate()
-                outputs = g.txt2img(prompt, height=height, width=width, steps=steps, cfg_scale=cfg_scale, sampler_name=sampler_name)
+                outputs = g.txt2img(prompt, height=height, width=width,
+                                    steps=steps, cfg_scale=cfg_scale, sampler_name=sampler_name)
                 return {"url": "outputs/"+outputs[0][0].split("/")[2]}, 200
             except Exception as e:
                 print(e)
